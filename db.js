@@ -1,81 +1,62 @@
-const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
 
-const dbPath = path.join(__dirname, 'qr-tracker.db');
-let db;
+const dbPath = path.join(__dirname, 'data.json');
 
-async function initDb() {
-  const SQL = await initSqlJs();
+let data = { campaigns: [], scans: [], _nextCampaignId: 1, _nextScanId: 1 };
 
+function load() {
   if (fs.existsSync(dbPath)) {
-    const buffer = fs.readFileSync(dbPath);
-    db = new SQL.Database(buffer);
-  } else {
-    db = new SQL.Database();
+    data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
   }
-
-  db.run('PRAGMA foreign_keys = ON');
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS campaigns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      destination_url TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS scans (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      qr_id INTEGER NOT NULL,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-      ip TEXT,
-      user_agent TEXT,
-      FOREIGN KEY (qr_id) REFERENCES campaigns(id)
-    )
-  `);
-
-  saveDb();
-  return db;
 }
 
-function saveDb() {
-  if (!db) return;
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(dbPath, buffer);
+function save() {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
 }
 
-function queryAll(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return rows;
+function getTable(name) {
+  return data[name] || [];
 }
 
-function queryOne(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  let row = null;
-  if (stmt.step()) {
-    row = stmt.getAsObject();
-  }
-  stmt.free();
-  return row;
+function nextId(name) {
+  const key = `_next${name.charAt(0).toUpperCase() + name.slice(1)}Id`;
+  return data[key]++;
 }
 
-function run(sql, params = []) {
-  db.run(sql, params);
-  const lastId = db.exec('SELECT last_insert_rowid() as id');
-  const changes = db.getRowsModified();
-  saveDb();
-  return { changes, lastInsertRowid: lastId[0]?.values[0][0] || 0 };
+function queryAll(table, filterFn) {
+  const rows = data[table] || [];
+  return filterFn ? rows.filter(filterFn) : [...rows];
 }
 
-module.exports = { initDb, queryAll, queryOne, run, saveDb };
+function queryOne(table, filterFn) {
+  return (data[table] || []).find(filterFn) || null;
+}
+
+function insert(table, record) {
+  const idKey = table === 'campaigns' ? '_nextCampaignId' : '_nextScanId';
+  const id = data[idKey]++;
+  record.id = id;
+  if (!data[table]) data[table] = [];
+  data[table].push(record);
+  save();
+  return id;
+}
+
+function count(table, filterFn) {
+  const rows = data[table] || [];
+  return filterFn ? rows.filter(filterFn).length : rows.length;
+}
+
+function countDistinct(table, filterFn, distinctKey) {
+  const rows = data[table] || [];
+  const filtered = filterFn ? rows.filter(filterFn) : rows;
+  const unique = new Set(filtered.map(r => r[distinctKey]));
+  return unique.size;
+}
+
+function initDb() {
+  load();
+}
+
+module.exports = { initDb, queryAll, queryOne, insert, count, countDistinct };

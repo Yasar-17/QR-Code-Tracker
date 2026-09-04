@@ -1,21 +1,31 @@
 const express = require('express');
-const { queryOne, queryAll } = require('../db');
+const { queryAll } = require('../db');
 
 const router = express.Router();
 
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
 router.get('/:qrId/summary', (req, res) => {
   try {
-    const row = queryOne(`
-      SELECT
-        COUNT(*) AS total_scans,
-        COALESCE(SUM(CASE WHEN DATE(timestamp) = DATE('now') THEN 1 ELSE 0 END), 0) AS scans_today,
-        COALESCE(SUM(CASE WHEN DATE(timestamp) >= DATE('now', '-6 days') THEN 1 ELSE 0 END), 0) AS scans_this_week,
-        COUNT(DISTINCT ip) AS unique_ips
-      FROM scans
-      WHERE qr_id = ?
-    `, [Number(req.params.qrId)]);
+    const id = Number(req.params.qrId);
+    const scans = queryAll('scans', s => s.qr_id === id);
+    const todayStr = today();
+    const weekAgo = daysAgo(6);
 
-    res.json(row);
+    res.json({
+      total_scans: scans.length,
+      scans_today: scans.filter(s => s.timestamp && s.timestamp.startsWith(todayStr)).length,
+      scans_this_week: scans.filter(s => s.timestamp && s.timestamp >= weekAgo).length,
+      unique_ips: new Set(scans.map(s => s.ip)).size
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -23,20 +33,26 @@ router.get('/:qrId/summary', (req, res) => {
 
 router.get('/:qrId/daily', (req, res) => {
   try {
-    const rows = queryAll(`
-      WITH RECURSIVE days(day) AS (
-        SELECT DATE('now', '-29 days')
-        UNION ALL
-        SELECT DATE(day, '+1 day') FROM days WHERE day < DATE('now')
-      )
-      SELECT days.day AS date, COUNT(scans.id) AS count
-      FROM days
-      LEFT JOIN scans ON DATE(scans.timestamp) = days.day AND scans.qr_id = ?
-      GROUP BY days.day
-      ORDER BY days.day
-    `, [Number(req.params.qrId)]);
+    const id = Number(req.params.qrId);
+    const scans = queryAll('scans', s => s.qr_id === id);
 
-    res.json(rows);
+    const dayCounts = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = daysAgo(i);
+      dayCounts[d] = 0;
+    }
+
+    scans.forEach(s => {
+      if (s.timestamp) {
+        const day = s.timestamp.slice(0, 10);
+        if (dayCounts.hasOwnProperty(day)) {
+          dayCounts[day]++;
+        }
+      }
+    });
+
+    const result = Object.entries(dayCounts).map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -44,13 +60,15 @@ router.get('/:qrId/daily', (req, res) => {
 
 router.get('/:qrId/recent', (req, res) => {
   try {
-    const scans = queryAll(`
-      SELECT timestamp, ip, user_agent
-      FROM scans
-      WHERE qr_id = ?
-      ORDER BY timestamp DESC
-      LIMIT 20
-    `, [Number(req.params.qrId)]);
+    const id = Number(req.params.qrId);
+    const scans = queryAll('scans', s => s.qr_id === id)
+      .sort((a, b) => (b.id || 0) - (a.id || 0))
+      .slice(0, 20)
+      .map(s => ({
+        timestamp: s.timestamp,
+        ip: s.ip,
+        user_agent: s.user_agent
+      }));
 
     res.json(scans);
   } catch (err) {

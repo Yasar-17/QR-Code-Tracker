@@ -1,9 +1,7 @@
-require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDb, queryOne, run } = require('./db');
+const { initDb, queryOne, insert } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,17 +15,18 @@ app.use('/api/analytics', require('./routes/analytics'));
 
 app.get('/r/:id', (req, res) => {
   try {
-    const campaign = queryOne('SELECT * FROM campaigns WHERE id = ?', [Number(req.params.id)]);
+    const id = Number(req.params.id);
+    const campaign = queryOne('campaigns', c => c.id === id);
 
     if (!campaign) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    run('INSERT INTO scans (qr_id, ip, user_agent) VALUES (?, ?, ?)', [
-      campaign.id,
-      req.ip,
-      req.headers['user-agent'] || ''
-    ]);
+    insert('scans', {
+      qr_id: campaign.id,
+      ip: req.ip,
+      user_agent: req.headers['user-agent'] || ''
+    });
 
     let url = campaign.destination_url;
     if (!/^https?:\/\//i.test(url)) {
@@ -49,11 +48,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-initDb().then(() => {
-  app.listen(PORT, () => {
-    console.log(`qr-tracker server running on http://localhost:${PORT}`);
-  });
-}).catch(err => {
-  console.error('Failed to initialize database:', err);
-  process.exit(1);
+initDb();
+app.listen(PORT, () => {
+  console.log(`qr-tracker server running on http://localhost:${PORT}`);
 });

@@ -1,6 +1,6 @@
 const express = require('express');
 const QRCode = require('qrcode');
-const { queryAll, run } = require('../db');
+const { queryAll, queryOne, insert } = require('../db');
 
 const router = express.Router();
 
@@ -12,14 +12,18 @@ router.post('/create', async (req, res) => {
       return res.status(400).json({ error: 'name and destination_url are required' });
     }
 
-    const result = run('INSERT INTO campaigns (name, destination_url) VALUES (?, ?)', [name, destination_url]);
+    const id = insert('campaigns', {
+      name,
+      destination_url,
+      created_at: new Date().toISOString()
+    });
 
     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-    const qrUrl = `${baseUrl}/r/${result.lastInsertRowid}`;
+    const qrUrl = `${baseUrl}/r/${id}`;
     const qrImage = await QRCode.toDataURL(qrUrl);
 
     res.status(201).json({
-      id: result.lastInsertRowid,
+      id,
       name,
       qr_image: qrImage
     });
@@ -30,20 +34,16 @@ router.post('/create', async (req, res) => {
 
 router.get('/list', (req, res) => {
   try {
-    const campaigns = queryAll(`
-      SELECT
-        c.id,
-        c.name,
-        c.destination_url,
-        c.created_at,
-        COUNT(s.id) AS scan_count
-      FROM campaigns c
-      LEFT JOIN scans s ON c.id = s.qr_id
-      GROUP BY c.id
-      ORDER BY c.created_at DESC
-    `);
+    const campaigns = queryAll('campaigns');
+    const result = campaigns.map(c => ({
+      id: c.id,
+      name: c.name,
+      destination_url: c.destination_url,
+      created_at: c.created_at,
+      scan_count: queryAll('scans', s => s.qr_id === c.id).length
+    })).sort((a, b) => b.id - a.id);
 
-    res.json(campaigns);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
