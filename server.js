@@ -5,6 +5,8 @@ const { initDb, queryOne, insert } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const rawBASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const BASE_URL = rawBASE_URL ? rawBASE_URL.replace(/\/$/, '') : `http://localhost:${PORT}`;
 
 app.use(cors());
 app.use(express.json());
@@ -51,4 +53,5 @@ app.use((err, req, res, next) => {
 initDb();
 app.listen(PORT, () => {
   console.log(`qr-tracker server running on http://localhost:${PORT}`);
+  console.log(`RESOLVED BASE_URL: ${BASE_URL}`);
 });

@@ -18,7 +18,7 @@ router.post('/create', async (req, res) => {
       created_at: new Date().toISOString()
     });
 
-    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+    const baseUrl = process.env.BASE_URL ? process.env.BASE_URL.replace(/\/$/, '') : `http://localhost:${process.env.PORT || 3000}`;
     const qrUrl = `${baseUrl}/r/${id}`;
     const qrImage = await QRCode.toDataURL(qrUrl);
 
