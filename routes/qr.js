@@ -1,6 +1,6 @@
 const express = require('express');
 const QRCode = require('qrcode');
-const db = require('../db');
+const { queryAll, run } = require('../db');
 
 const router = express.Router();
 
@@ -12,8 +12,7 @@ router.post('/create', async (req, res) => {
       return res.status(400).json({ error: 'name and destination_url are required' });
     }
 
-    const stmt = db.prepare('INSERT INTO campaigns (name, destination_url) VALUES (?, ?)');
-    const result = stmt.run(name, destination_url);
+    const result = run('INSERT INTO campaigns (name, destination_url) VALUES (?, ?)', [name, destination_url]);
 
     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
     const qrUrl = `${baseUrl}/r/${result.lastInsertRowid}`;
@@ -31,7 +30,7 @@ router.post('/create', async (req, res) => {
 
 router.get('/list', (req, res) => {
   try {
-    const campaigns = db.prepare(`
+    const campaigns = queryAll(`
       SELECT
         c.id,
         c.name,
@@ -42,7 +41,7 @@ router.get('/list', (req, res) => {
       LEFT JOIN scans s ON c.id = s.qr_id
       GROUP BY c.id
       ORDER BY c.created_at DESC
-    `).all();
+    `);
 
     res.json(campaigns);
   } catch (err) {
