@@ -51,7 +51,11 @@ app.use((err, req, res, next) => {
 });
 
 initDb();
-app.listen(PORT, () => {
-  console.log(`qr-tracker server running on http://localhost:${PORT}`);
-  console.log(`RESOLVED BASE_URL: ${BASE_URL}`);
+const server = app.listen(PORT, () => {
+  console.log(`qr-tracker server running on ${BASE_URL || `http://localhost:${PORT}`}`);
+  console.log(`RESOLVED BASE_URL: ${BASE_URL || 'NOT SET - using localhost fallback'}`);
+  if (!process.env.BASE_URL) {
+    console.warn('⚠️  BASE_URL environment variable is not set!');
+    console.warn('   QR codes will use localhost URLs. Set BASE_URL in Railway dashboard.');
+  }
 });
