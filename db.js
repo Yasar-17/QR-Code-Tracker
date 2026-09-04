@@ -55,8 +55,19 @@ function countDistinct(table, filterFn, distinctKey) {
   return unique.size;
 }
 
+function deleteById(table, id) {
+  const rows = data[table] || [];
+  const index = rows.findIndex(r => r.id === id);
+  if (index > -1) rows.splice(index, 1);
+  save();
+}
+
+function save() {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+}
+
 function initDb() {
   load();
 }
 
-module.exports = { initDb, queryAll, queryOne, insert, count, countDistinct };
+module.exports = { initDb, queryAll, queryOne, insert, count, countDistinct, deleteById, save };

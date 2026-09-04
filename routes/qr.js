@@ -1,6 +1,6 @@
 const express = require('express');
 const QRCode = require('qrcode');
-const { queryAll, queryOne, insert } = require('../db');
+const { queryAll, queryOne, insert, deleteById, save } = require('../db');
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ router.post('/create', async (req, res) => {
       created_at: new Date().toISOString()
     });
 
-    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
     const qrUrl = `${baseUrl}/r/${id}`;
     const qrImage = await QRCode.toDataURL(qrUrl);
 
@@ -44,6 +44,25 @@ router.get('/list', (req, res) => {
     })).sort((a, b) => b.id - a.id);
 
     res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/:id', (req, res) => {
+  try {
+    const campaignId = Number(req.params.id);
+
+    // Delete associated scans first to avoid orphaned data
+    const scans = queryAll('scans', s => s.qr_id === campaignId);
+    scans.forEach(s => {
+      deleteById('scans', s.id);
+    });
+
+    // Delete the campaign
+    deleteById('campaigns', campaignId);
+
+    res.json({ message: 'Campaign deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

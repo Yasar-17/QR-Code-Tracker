@@ -215,9 +215,15 @@
                 <span class="text-2xl font-bold text-gray-900">${c.scan_count}</span>
                 <span class="text-xs text-gray-400 ml-1">scans</span>
               </div>
-              <button onclick="showAnalytics(${c.id}, '${esc(c.name)}', '${esc(c.destination_url)}')" class="text-xs font-semibold text-brand-700 hover:text-brand-800 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors">
-                View Analytics
-              </button>
+              <div class="flex gap-2">
+                <button onclick="showAnalytics(${c.id}, '${esc(c.name)}', '${esc(c.destination_url)}')" class="text-xs font-semibold text-brand-700 hover:text-brand-800 px-3 py-1.5 rounded-lg hover:bg-brand-50 transition-colors">
+                  View Analytics
+                </button>
+                <button onclick="deleteCampaign(${c.id})" class="text-xs font-medium text-red-600 hover:text-red-800 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.832a2 2 0 01-2.34 1.664H7.66a2 2 0 01-2.341-1.664L3 7"></path></svg>
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         `).join('');
@@ -329,9 +335,31 @@
       setTimeout(() => document.getElementById('qr-name').focus(), 100);
     }
 
-    function closeModal() {
+function closeModal() {
       document.getElementById('modal-backdrop').classList.add('hidden');
       document.getElementById('modal').classList.add('hidden');
+    }
+
+    async function deleteCampaign(campaignId) {
+      if (!confirm("Are you sure you want to delete this campaign? This will also delete all its scan data.")) return;
+      try {
+        const result = await api(`/api/qr/${campaignId}`, { method: "DELETE" });
+        if (result.message) {
+          const grid = document.getElementById("campaigns-grid");
+          const cards = grid.querySelectorAll(".campaign-card");
+          cards.forEach(card => {
+            const nameEl = card.querySelector("h3.text-base.font-bold.text-gray-900.truncate");
+            if (nameEl && nameEl.textContent.trim() === String(campaignId)) {
+              card.remove();
+            }
+          });
+          if (cards.length === 0) {
+            document.getElementById("empty-state").classList.remove("hidden");
+          }
+        }
+      } catch (err) {
+        alert("Failed to delete campaign: " + err.message);
+      }
     }
 
     async function handleCreate(e) {
