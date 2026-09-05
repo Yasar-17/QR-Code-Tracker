@@ -170,7 +170,10 @@
   </div>
 
   <script>
-    const API = '';
+    // API Configuration for Vercel+Railway hybrid deployment
+    // Set API_URL on Vercel dashboard as: https://your-railway-url.up.railway.app
+    const API_URL = process.env.API_URL || 'https://qr-code-tracker.up.railway.app';
+    const API = API_URL;  // API calls already include /api prefix in the path
     let currentChart = null;
 
     async function api(path, options = {}) {
