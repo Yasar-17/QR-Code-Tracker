@@ -8,21 +8,8 @@ const PORT = process.env.PORT || 3000;
 const rawBASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const BASE_URL = rawBASE_URL ? rawBASE_URL.replace(/\/$/, '') : `http://localhost:${PORT}`;
 
-const allowedOrigins = [
-  'https://your-vercel-app.vercel.app',  // Replace with actual Vercel URL after deploy
-  'http://localhost:3000'
-]);
-
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
-      callback(null, true);
-    } else if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, true);
-    }
-  }
+  origin: process.env.VERCEL_URL || '*'
 }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
